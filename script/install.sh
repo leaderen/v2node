@@ -110,41 +110,72 @@ elif [[ x"${release}" == x"debian" ]]; then
 fi
 
 install_base() {
-    # helper: install missing packages only
+    # 优化版本：批量检查和安装包，减少系统调用
     need_install_apt() {
+        local packages=("$@")
         local missing=()
-        for p in "$@"; do
-            dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p")
+        
+        # 批量检查已安装的包
+        local installed_list=$(dpkg-query -W -f='${Package}\n' 2>/dev/null | sort)
+        
+        for p in "${packages[@]}"; do
+            if ! echo "$installed_list" | grep -q "^${p}$"; then
+                missing+=("$p")
+            fi
         done
+        
         if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "安装缺失的包: ${missing[*]}"
             apt-get update -y >/dev/null 2>&1
-            DEBIAN_FRONTEND=noninteractive apt-get install -y ${missing[@]} >/dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}" >/dev/null 2>&1
         fi
     }
 
     need_install_yum() {
+        local packages=("$@")
         local missing=()
-        for p in "$@"; do
-            rpm -q "$p" >/dev/null 2>&1 || missing+=("$p")
+        
+        # 批量检查已安装的包
+        local installed_list=$(rpm -qa --qf '%{NAME}\n' 2>/dev/null | sort)
+        
+        for p in "${packages[@]}"; do
+            if ! echo "$installed_list" | grep -q "^${p}$"; then
+                missing+=("$p")
+            fi
         done
+        
         if [[ ${#missing[@]} -gt 0 ]]; then
-            yum install -y ${missing[@]} >/dev/null 2>&1
+            echo "安装缺失的包: ${missing[*]}"
+            yum install -y "${missing[@]}" >/dev/null 2>&1
         fi
     }
 
     need_install_apk() {
+        local packages=("$@")
         local missing=()
-        for p in "$@"; do
-            apk info -e "$p" >/dev/null 2>&1 || missing+=("$p")
+        
+        # 批量检查已安装的包
+        local installed_list=$(apk info 2>/dev/null | sort)
+        
+        for p in "${packages[@]}"; do
+            if ! echo "$installed_list" | grep -q "^${p}$"; then
+                missing+=("$p")
+            fi
         done
+        
         if [[ ${#missing[@]} -gt 0 ]]; then
-            apk add --no-cache ${missing[@]} >/dev/null 2>&1
+            echo "安装缺失的包: ${missing[*]}"
+            apk add --no-cache "${missing[@]}" >/dev/null 2>&1
         fi
     }
 
+    # 一次性安装所有必需的包
     if [[ x"${release}" == x"centos" ]]; then
-        # epel-release for extra packages if not present
-        rpm -q epel-release >/dev/null 2>&1 || yum install -y epel-release >/dev/null 2>&1
+        # 检查并安装 epel-release
+        if ! rpm -q epel-release >/dev/null 2>&1; then
+            echo "安装 EPEL 源..."
+            yum install -y epel-release >/dev/null 2>&1
+        fi
         need_install_yum wget curl unzip tar cronie socat ca-certificates pv
         update-ca-trust force-enable >/dev/null 2>&1 || true
     elif [[ x"${release}" == x"alpine" ]]; then
@@ -157,8 +188,10 @@ install_base() {
         need_install_apt wget curl unzip tar cron socat ca-certificates pv
         update-ca-certificates >/dev/null 2>&1 || true
     elif [[ x"${release}" == x"arch" ]]; then
+        echo "更新包数据库..."
         pacman -Sy --noconfirm >/dev/null 2>&1
-        # --needed will skip already installed packages; Arch cron package is cronie
+        # --needed 会跳过已安装的包，非常高效
+        echo "安装必需的包..."
         pacman -S --noconfirm --needed wget curl unzip tar cronie socat ca-certificates pv >/dev/null 2>&1
     fi
 }
