@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -84,6 +85,8 @@ type TlsSettings struct {
 	Mldsa65Seed      string `json:"mldsa65Seed"`
 	Xver             uint64 `json:"xver,string"`
 	CertMode         string `json:"cert_mode"`
+	CertFile         string `json:"cert_file"`
+	KeyFile          string `json:"key_file"`
 	Provider         string `json:"provider"`
 	DNSEnv           string `json:"dns_env"`
 	RejectUnknownSni string `json:"reject_unknown_sni"`
@@ -157,9 +160,18 @@ func (c *Client) GetNodeInfo() (node *NodeInfo, err error) {
 	default:
 		return nil, fmt.Errorf("unsupport protocol: %s", cm.Protocol)
 	}
-
+	cf := cm.TlsSettings.CertFile
+	kf := cm.TlsSettings.KeyFile
+	if cf == "" {
+		cf = filepath.Join("/etc/v2node/", cm.Protocol+strconv.Itoa(c.NodeId)+".cer")
+	}
+	if kf == "" {
+		kf = filepath.Join("/etc/v2node/", cm.Protocol+strconv.Itoa(c.NodeId)+".key")
+	}
 	cm.CertInfo = &CertInfo{
 		CertMode:         cm.TlsSettings.CertMode,
+		CertFile:         cf,
+		KeyFile:          kf,
 		Email:            "node@v2board.com",
 		CertDomain:       cm.TlsSettings.ServerName,
 		DNSEnv:           make(map[string]string),

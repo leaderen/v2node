@@ -2,8 +2,6 @@ package node
 
 import (
 	"fmt"
-	"path/filepath"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	panel "github.com/wyx2685/v2node/api/v2board"
@@ -30,8 +28,6 @@ func New(nodes []conf.NodeConfig, configpath string) (*Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		info.Common.CertInfo.CertFile = filepath.Join(configpath, info.Type+strconv.Itoa(info.Id)+".cer")
-		info.Common.CertInfo.KeyFile = filepath.Join(configpath, info.Type+strconv.Itoa(info.Id)+".key")
 		n.controllers[i] = NewController(p, info)
 		n.NodeInfos[i] = info
 	}
