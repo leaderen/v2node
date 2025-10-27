@@ -176,7 +176,9 @@ jobs:
         with:
           name: v2node-${{ steps.get_filename.outputs.ASSET_NAME }}
           path: |
-            ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}/*
+            ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}.zip
+            ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}.zip.dgst
+            ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}/
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         if: github.event_name == 'release'
@@ -240,9 +242,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           cd artifacts
+          # 查找所有 .zip 和 .dgst 文件并上传
           find . -type f \( -name "*.zip" -o -name "*.dgst" \) | while read file; do
             echo "Uploading: $file"
-            gh release upload ${{ steps.get_version.outputs.version }} "$file" --clobber
+            gh release upload ${{ steps.get_version.outputs.version }} "$PWD/$file" --clobber
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
