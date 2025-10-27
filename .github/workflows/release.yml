@@ -2,6 +2,12 @@ name: Build and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: false
+        type: string
+        default: ''
   push:
     branches:
       - master
@@ -179,3 +185,64 @@ jobs:
           file: ./v2node-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
           tag: ${{ github.ref }}
           file_glob: true
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: false
+      
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\///')
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.version }}" ]; then
+              VERSION="${{ github.event.inputs.version }}"
+            else
+              VERSION="v0.0.0-${{ github.sha }}"
+            fi
+          else
+            VERSION="v0.0.0-${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Build Information
+            - **Commit**: ${{ github.sha }}
+            - **Trigger**: Manual workflow dispatch
+            - **Date**: ${{ github.event.head_commit.timestamp }}
+            
+            ## Downloads
+            See the attached files below for your platform.
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload to Release
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.zip" -o -name "*.dgst" \) | while read file; do
+            echo "Uploading: $file"
+            gh release upload ${{ steps.get_version.outputs.version }} "$file" --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
